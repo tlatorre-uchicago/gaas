@@ -44,6 +44,9 @@ V_E = 240 # km/s
 # Typical velocity
 V_0 = 230 # km/s
 
+# speed of light
+SPEED_OF_LIGHT = 299792 # km/s
+
 K = V_0**3*np.pi*(np.sqrt(np.pi)*erf(V_ESC/V_0) - 2*(V_ESC/V_0)*np.exp(-(V_ESC/V_0)**2)) # (km/s)^3
 
 def eta(q,e):
@@ -54,9 +57,11 @@ def eta(q,e):
 
     Returns the inverse mean speed in units of s/cm
     """
-    v_min = q/(2*M_X) + e/q
+    v_min = (q/(2*M_X) + e/q)*SPEED_OF_LIGHT
 
-    if v_min < V_ESC - V_E:
+    if v_min < 0:
+        return 0
+    elif v_min < V_ESC - V_E:
         # The 1e-5 is to convert s/km -> s/cm
         return 1e-5*V_0**2*np.pi/(2*V_E*K)*(-4*np.exp(-V_ESC**2/V_0**2)*V_E + np.sqrt(np.pi)*V_0*(erf((v_min+V_E)/V_0) - erf((v_min-V_E)/V_0)))
     elif V_ESC - V_E < v_min < V_ESC + V_E:
@@ -78,14 +83,19 @@ def get_differential_rate(e):
 
     # See Equation 3.13
     # The 1e-6 is to convert events/GeV -> events/keV
-    ln_q_min = np.log(1e-10)
-    ln_q_max = np.log(100)
+    ln_q_min = np.log(1e-40)
+    ln_q_max = np.log(1)
     return 1e-6*(RHO_X/M_X)*N_CELL*SIGMA_E*ALPHA*(M_E**2/MU**2)*quad(func,ln_q_min,ln_q_max,args=(e))[0]/e
 
-e = np.linspace(0.001,100,1000)
+e = np.logspace(-3,2,10000)
 rate = np.array(list(map(get_differential_rate,e)))
 
+total_rate = np.trapz(rate*24*60*60,e)
+
+print("total rate is %.2e events/kg/day" % total_rate)
+
 plt.plot(e,rate*24*60*60)
+plt.gca().set_xscale("log")
 plt.xlabel("Energy Transferred (keV)")
 plt.ylabel("Rate (Events/kg/keV/day)")
 plt.show()
