@@ -76,16 +76,23 @@ def get_differential_rate(e):
     """
     # keV -> GeV
     e /= 1e6
-    def func(ln_q,e):
+    def func(q,e):
         # FIXME: Assume here that F_DM(q) = 1 and f_crystal(q,e) = 1
-        q = np.exp(ln_q)
-        return (e/q)*eta(q,e)
+        return (e/q)*eta(q,e)/q
+
+    def get_v_min(q,e):
+        v_min = (q/(2*M_X) + e/q)*SPEED_OF_LIGHT
+        return v_min
+
+    from scipy.optimize import fmin
+    xopt = fmin(lambda x: get_v_min(x,e), 1e-5, xtol=1e-6, ftol=0.01, maxfun=100000)
 
     # See Equation 3.13
     # The 1e-6 is to convert events/GeV -> events/keV
-    ln_q_min = np.log(1e-40)
-    ln_q_max = np.log(1)
-    return 1e-6*(RHO_X/M_X)*N_CELL*SIGMA_E*ALPHA*(M_E**2/MU**2)*quad(func,ln_q_min,ln_q_max,args=(e))[0]/e
+    q_min = 1e-6
+    q_max = 1e2
+
+    return 1e-6*(RHO_X/M_X)*N_CELL*SIGMA_E*ALPHA*(M_E**2/MU**2)*quad(func,q_min,q_max,points=[xopt],args=(e))[0]/e
 
 e = np.logspace(-3,2,10000)
 rate = np.array(list(map(get_differential_rate,e)))
