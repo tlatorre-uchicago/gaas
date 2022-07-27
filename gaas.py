@@ -35,7 +35,10 @@ ALPHA = 1/137.035999084
 M_E = 0.511e-3 # GeV
 # Reduced mass of electron dark matter system
 MU = M_E*M_X/(M_E + M_X)
-# v_min = q/(2*M_X) + delta_E/q
+
+# Minimum energy required to produce a photon (in this case we take the D band
+# from https://arxiv.org/pdf/1904.09362.pdf)
+E_MIN = 0.93 # eV
 
 # Escape velocity
 V_ESC = 600 # km/s
@@ -118,7 +121,7 @@ if __name__ == '__main__':
     parser.add_argument("-o","--output",type=str,help="output filename",default=None)
     args = parser.parse_args()
 
-    e = np.logspace(-3,0,1000)
+    e = np.logspace(np.log(E_MIN*1e-3),1,1000)
     rate = np.array(list(map(get_differential_rate,e)))
 
     if args.output is not None:
