@@ -91,16 +91,15 @@ def get_differential_rate(e):
     # this (since it evaluates the function at the two edges and sees both are
     # zero. Therefore, we need to give it a set of points where the function
     # will be non-zero to make sure that it converges.
-
     xopt = fmin(lambda x: get_v_min(x,e), 1e-10, xtol=1e-6, ftol=1e-4, maxfun=100000)[0]
 
-    # Now we try to find the right side
+    # First we try to find the maximum point where v_min < V_ESC + V_E
     try:
         qmax = bisect(lambda x: get_v_min(x,e) - (V_ESC + V_E), xopt, 1, xtol=1e-20)
     except Exception:
         qmax = 1e2
 
-    # Now we try to find the point where it transitions from 0 to a 
+    # Now we try to find the minimum point where v_vmin < V_ESC + V_E
     try:
         qmin = bisect(lambda x: get_v_min(x,e) - (V_ESC + V_E), 0, xopt, xtol=1e-20)
     except Exception:
@@ -112,9 +111,24 @@ def get_differential_rate(e):
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
+    import ROOT
+    import argparse
 
-    e = np.logspace(-10,2,1000)
+    parser = argparse.ArgumentParser("plot the number of expected dark matter interactions as a function of energy")
+    parser.add_argument("-o","--output",type=str,help="output filename",default=None)
+    args = parser.parse_args()
+
+    e = np.logspace(-3,0,1000)
     rate = np.array(list(map(get_differential_rate,e)))
+
+    if args.output is not None:
+        f = ROOT.TFile(args.output,"recreate")
+        h = ROOT.TH1D("h","Rate of dark matter interactions",len(e)-1,e)
+        for i in range(1,len(e)):
+            x = h.GetBinCenter(i)
+            h.SetBinContent(i,np.interp(x,e,rate))
+        h.Write()
+        f.Close()
 
     total_rate = np.trapz(rate*24*60*60,e)
 
