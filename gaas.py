@@ -13,8 +13,8 @@ Author: Anthony LaTorre
 """
 import numpy as np
 from scipy.integrate import quad
-import matplotlib.pyplot as plt
 from scipy.special import erf
+from scipy.optimize import fmin, bisect
 
 # From https://arxiv.org/pdf/1509.01598.pdf Equation 3.13
 
@@ -84,8 +84,6 @@ def get_differential_rate(e):
         v_min = (q/(2*M_X) + e/q)*SPEED_OF_LIGHT
         return v_min
 
-    from scipy.optimize import fmin, bisect
-
     # First, we try to find the minimum of vmin as a function of the momenum
     # transfer `q`. The reason is that the mean inverse speed `eta` function,
     # is only non-zero over a narrow range where 0 < v_min < V_ESC + V_E and
@@ -98,13 +96,13 @@ def get_differential_rate(e):
 
     # Now we try to find the right side
     try:
-        qmax = bisect(lambda x: get_v_min(x,e) - (V_ESC + V_E), xopt, 1)
+        qmax = bisect(lambda x: get_v_min(x,e) - (V_ESC + V_E), xopt, 1, xtol=1e-20)
     except Exception:
         qmax = 1e2
 
     # Now we try to find the point where it transitions from 0 to a 
     try:
-        qmin = bisect(lambda x: get_v_min(x,e) - (V_ESC + V_E), 0, xopt)
+        qmin = bisect(lambda x: get_v_min(x,e) - (V_ESC + V_E), 0, xopt, xtol=1e-20)
     except Exception:
         qmin = 1e-6
 
@@ -112,15 +110,18 @@ def get_differential_rate(e):
     # The 1e-6 is to convert events/GeV -> events/keV
     return (1e-6*(RHO_X/M_X)*N_CELL*SIGMA_E*ALPHA*(M_E**2/MU**2)*quad(func,qmin,qmax,points=[xopt],epsabs=1e-20,args=(e))[0]/e)*(SPEED_OF_LIGHT*1e5)**2
 
-e = np.logspace(-10,2,1000)
-rate = np.array(list(map(get_differential_rate,e)))
+if __name__ == '__main__':
+    import matplotlib.pyplot as plt
 
-total_rate = np.trapz(rate*24*60*60,e)
+    e = np.logspace(-10,2,1000)
+    rate = np.array(list(map(get_differential_rate,e)))
 
-print("total rate is %.2e events/kg/day" % total_rate)
+    total_rate = np.trapz(rate*24*60*60,e)
 
-plt.plot(e,rate*24*60*60)
-plt.gca().set_xscale("log")
-plt.xlabel("Energy Transferred (keV)")
-plt.ylabel("Rate (Events/kg/keV/day)")
-plt.show()
+    print("total rate is %.2e events/kg/day" % total_rate)
+
+    plt.plot(e,rate*24*60*60)
+    plt.gca().set_xscale("log")
+    plt.xlabel("Energy Transferred (keV)")
+    plt.ylabel("Rate (Events/kg/keV/day)")
+    plt.show()
