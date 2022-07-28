@@ -101,7 +101,7 @@ def get_differential_rate(e):
     # keV -> GeV
     e /= 1e6
     def func(q,e):
-        # FIXME: Assume here that F_DM(q) = 1 and f_crystal(q,e) = 1
+        # FIXME: Assume here that F_DM(q) = 1
         return (e/q)*eta(q,e)/q*f_crystal([q,e])
 
     def get_v_min(q,e):
@@ -119,19 +119,19 @@ def get_differential_rate(e):
 
     # First we try to find the maximum point where v_min < V_ESC + V_E
     try:
-        qmax = bisect(lambda x: get_v_min(x,e) - (V_ESC + V_E), xopt, 1, xtol=1e-20)
+        qmax = bisect(lambda x: get_v_min(x,e) - (V_ESC + V_E), xopt, 1, xtol=1e-10)
     except Exception:
         qmax = 1e2
 
     # Now we try to find the minimum point where v_vmin < V_ESC + V_E
     try:
-        qmin = bisect(lambda x: get_v_min(x,e) - (V_ESC + V_E), 0, xopt, xtol=1e-20)
+        qmin = bisect(lambda x: get_v_min(x,e) - (V_ESC + V_E), 0, xopt, xtol=1e-10)
     except Exception:
         qmin = 1e-6
 
     # See Equation 3.13
     # The 1e-6 is to convert events/GeV -> events/keV
-    return (1e-6*(RHO_X/M_X)*N_CELL*SIGMA_E*ALPHA*(M_E**2/MU**2)*quad(func,qmin,qmax,points=[xopt],epsrel=1e-10,epsabs=1e-20,args=(e))[0]/e)*(SPEED_OF_LIGHT*1e5)**2
+    return (1e-6*(RHO_X/M_X)*N_CELL*SIGMA_E*ALPHA*(M_E**2/MU**2)*quad(func,qmin,qmax,points=[xopt],epsabs=1e-10,args=(e))[0]/e)*(SPEED_OF_LIGHT*1e5)**2
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
@@ -142,15 +142,13 @@ if __name__ == '__main__':
     parser.add_argument("-o","--output",type=str,help="output filename",default=None)
     args = parser.parse_args()
 
-    e = np.logspace(np.log(E_MIN*1e-3),1,10)
+    e = np.logspace(np.log(E_MIN*1e-3),1,1000)
     rate = np.array(list(map(get_differential_rate,e)))
 
     plt.figure()
-    f_crystal_test = f_crystal(list(zip(QQ.flatten(),EE.flatten())))
-    print(f_crystal_test[f_crystal_test != 0])
-    plt.hist2d(QQ.flatten()*1e6,EE.flatten()*1e9,bins=[qq*1e6,ee*1e9],weights=f_crystal(list(zip(QQ.flatten(),EE.flatten()))),norm=mpl.colors.LogNorm(vmin=1e-3,vmax=10))
-    plt.xlabel("q (keV)")
-    plt.ylabel("E (eV)")
+    plt.hist2d(EE.flatten()*1e9,QQ.flatten()*1e6,bins=[ee*1e9,qq*1e6],weights=f_crystal(list(zip(QQ.flatten(),EE.flatten()))),norm=mpl.colors.LogNorm(vmin=1e-3,vmax=10))
+    plt.xlabel("E (eV)")
+    plt.ylabel("q (keV)")
     plt.title("Germanium Form Factor")
     plt.colorbar()
 
