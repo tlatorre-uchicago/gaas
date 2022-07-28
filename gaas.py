@@ -15,6 +15,8 @@ import numpy as np
 from scipy.integrate import quad
 from scipy.special import erf
 from scipy.optimize import fmin, bisect
+from scipy.interpolate import interp2d, RegularGridInterpolator
+import matplotlib as mpl
 
 # From https://arxiv.org/pdf/1509.01598.pdf Equation 3.13
 
@@ -52,6 +54,25 @@ SPEED_OF_LIGHT = 299792 # km/s
 
 K = V_0**3*np.pi*(np.sqrt(np.pi)*erf(V_ESC/V_0) - 2*(V_ESC/V_0)*np.exp(-(V_ESC/V_0)**2)) # (km/s)^3
 
+## import QEdark data
+# From https://github.com/tientienyu/QEdark/blob/main/QEdark-python/QEdark_f2.ipynb
+nq = 900
+nE = 500
+
+dQ = 0.02*ALPHA*M_E # GeV
+dE = 0.1e-9 # GeV
+qq = (np.arange(nq)+1)*dQ
+ee = (np.arange(nE)+1)*dE
+
+qbincenters = (qq[1:] + qq[:-1])/2
+ebincenters = (ee[1:] + ee[:-1])/2
+QQ, EE = np.meshgrid(qbincenters,ebincenters)
+
+fcrys = {'Si': np.transpose(np.resize(np.loadtxt('Si_f2.txt',skiprows=1),(nE,nq))),
+         'Ge': np.transpose(np.resize(np.loadtxt('Ge_f2.txt',skiprows=1),(nE,nq)))}
+
+f_crystal = RegularGridInterpolator((qq,ee),fcrys['Ge'],bounds_error=False,fill_value=0)
+
 def eta(q,e):
     """
     Inverse mean speed. See Appendix B.
@@ -81,7 +102,7 @@ def get_differential_rate(e):
     e /= 1e6
     def func(q,e):
         # FIXME: Assume here that F_DM(q) = 1 and f_crystal(q,e) = 1
-        return (e/q)*eta(q,e)/q
+        return (e/q)*eta(q,e)/q*f_crystal([q,e])
 
     def get_v_min(q,e):
         v_min = (q/(2*M_X) + e/q)*SPEED_OF_LIGHT
@@ -110,7 +131,7 @@ def get_differential_rate(e):
 
     # See Equation 3.13
     # The 1e-6 is to convert events/GeV -> events/keV
-    return (1e-6*(RHO_X/M_X)*N_CELL*SIGMA_E*ALPHA*(M_E**2/MU**2)*quad(func,qmin,qmax,points=[xopt],epsabs=1e-20,args=(e))[0]/e)*(SPEED_OF_LIGHT*1e5)**2
+    return (1e-6*(RHO_X/M_X)*N_CELL*SIGMA_E*ALPHA*(M_E**2/MU**2)*quad(func,qmin,qmax,points=[xopt],epsrel=1e-10,epsabs=1e-20,args=(e))[0]/e)*(SPEED_OF_LIGHT*1e5)**2
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
@@ -121,8 +142,17 @@ if __name__ == '__main__':
     parser.add_argument("-o","--output",type=str,help="output filename",default=None)
     args = parser.parse_args()
 
-    e = np.logspace(np.log(E_MIN*1e-3),1,1000)
+    e = np.logspace(np.log(E_MIN*1e-3),1,10)
     rate = np.array(list(map(get_differential_rate,e)))
+
+    plt.figure()
+    f_crystal_test = f_crystal(list(zip(QQ.flatten(),EE.flatten())))
+    print(f_crystal_test[f_crystal_test != 0])
+    plt.hist2d(QQ.flatten()*1e6,EE.flatten()*1e9,bins=[qq*1e6,ee*1e9],weights=f_crystal(list(zip(QQ.flatten(),EE.flatten()))),norm=mpl.colors.LogNorm(vmin=1e-3,vmax=10))
+    plt.xlabel("q (keV)")
+    plt.ylabel("E (eV)")
+    plt.title("Germanium Form Factor")
+    plt.colorbar()
 
     if args.output is not None:
         f = ROOT.TFile(args.output,"recreate")
@@ -137,6 +167,7 @@ if __name__ == '__main__':
 
     print("total rate is %.2e events/kg/day" % total_rate)
 
+    plt.figure()
     plt.plot(e,rate*24*60*60)
     plt.gca().set_xscale("log")
     plt.xlabel("Energy Transferred (keV)")
